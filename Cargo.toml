@@ -1,0 +1,5 @@
+[package]
+
+name = "tail-rust"
+version = "0.0.1"
+authors = ["Andrew Miller <amcoder@gmail.com>"]
