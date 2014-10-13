@@ -9,7 +9,7 @@ use std::io::{
     SeekSet, SeekCur, SeekEnd,
 };
 use std::cmp::{ min };
-use getopts::{ optflag, getopts, usage };
+use getopts::{ optflag, optopt, getopts, usage };
 
 static VERSION: &'static str = "0.0.1";
 
@@ -21,6 +21,7 @@ fn main() {
     let program = args[0].clone();
 
     let opts = [
+        optopt("n", "lines", "output the last K lines", "K"),
         optflag("q", "quiet", "never output file name headers"),
         optflag("", "silent", "same as --quiet"),
         optflag("v", "verbose", "always output file name headers"),
@@ -47,6 +48,20 @@ fn main() {
         return;
     }
 
+    let line_count = match matches.opt_str("lines") {
+        Some(nstr) => {
+            match from_str(nstr.as_slice()) {
+                Some(n) => n,
+                None => {
+                    (writeln!(stderr(), "{}: {}: invalid number of lines",
+                                program, nstr)).unwrap();
+                    return;
+                },
+            }
+        },
+        None => DEFAULT_LINES,
+    };
+
     let files = &matches.free;
     let output_headers = !matches.opt_present("quiet") &&
                             !matches.opt_present("silent") &&
@@ -61,7 +76,7 @@ fn main() {
 
         // Open the file and tail it
         match File::open(&Path::new(file_name.as_slice()))
-                    .and_then(|f| { tail_file(f, DEFAULT_LINES) }) {
+                    .and_then(|f| { tail_file(f, line_count) }) {
             Err(error) => {
                 (writeln!(stderr(), "{}: {}: {}", program, file_name, error.desc)).unwrap();
             },
