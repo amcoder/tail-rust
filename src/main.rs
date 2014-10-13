@@ -9,6 +9,7 @@ use std::io::{
 use std::cmp::{ min };
 
 static BUFFER_SIZE: uint = 1024;
+static DEFAULT_LINES: uint = 10;
 
 fn main() {
     let args = args();
@@ -23,7 +24,7 @@ fn main() {
 
         // Open the file and tail it
         match File::open(&Path::new(arg.as_slice()))
-                    .and_then(|f| { tail_file(f, 10) }) {
+                    .and_then(|f| { tail_file(f, DEFAULT_LINES) }) {
             Err(error) => {
                 (writeln!(stderr(), "tail: {}: {}", arg, error.desc)).unwrap();
             },
