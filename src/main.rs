@@ -19,6 +19,8 @@ fn main() {
     let program = args[0].clone();
 
     let opts = [
+        optflag("q", "quiet", "never output file name headers"),
+        optflag("", "silent", "same as --quiet"),
         optflag("v", "verbose", "always output file name headers"),
         optflag("h", "help", "display this help and exit"),
     ];
@@ -38,7 +40,9 @@ fn main() {
     }
 
     let files = &matches.free;
-    let output_headers = matches.opt_present("verbose") || files.len() > 1;
+    let output_headers = !matches.opt_present("quiet") &&
+                            !matches.opt_present("silent") &&
+                            (matches.opt_present("verbose") || files.len() > 1);
 
     for file_name in files.iter() {
 
