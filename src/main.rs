@@ -20,7 +20,7 @@ fn main() {
     let args = args();
     let program = args[0].clone();
 
-    let opts = [
+    let options = [
         optopt("n", "lines", "output the last K lines", "K"),
         optflag("q", "quiet", "never output file name headers"),
         optflag("", "silent", "same as --quiet"),
@@ -29,7 +29,7 @@ fn main() {
         optflag("V", "version", "display version information and exit"),
     ];
 
-    let matches = match getopts(args.tail(), opts) {
+    let option_matches = match getopts(args.tail(), options) {
         Ok(m) => m,
         Err(error) => {
             (writeln!(stderr(), "{}: {}", program, error.to_string())).unwrap();
@@ -37,18 +37,18 @@ fn main() {
         },
     };
 
-    if matches.opt_present("h") {
+    if option_matches.opt_present("h") {
         let brief = format!("Usage: {} [OPTION]... [FILE]...", program);
-        println!("{}", usage(brief.as_slice(), opts));
+        println!("{}", usage(brief.as_slice(), options));
         return;
     }
 
-    if matches.opt_present("version") {
+    if option_matches.opt_present("version") {
         println!("tail-rust v{}", VERSION);
         return;
     }
 
-    let line_count = match matches.opt_str("lines") {
+    let line_count = match option_matches.opt_str("lines") {
         Some(nstr) => {
             match from_str(nstr.as_slice()) {
                 Some(n) => n,
@@ -62,10 +62,11 @@ fn main() {
         None => DEFAULT_LINES,
     };
 
-    let files = &matches.free;
-    let output_headers = !matches.opt_present("quiet") &&
-                            !matches.opt_present("silent") &&
-                            (matches.opt_present("verbose") || files.len() > 1);
+    let files = &option_matches.free;
+    let output_headers = !option_matches.opt_present("quiet") &&
+                            !option_matches.opt_present("silent") &&
+                            (option_matches.opt_present("verbose") ||
+                             files.len() > 1);
 
     for file_name in files.iter() {
 
