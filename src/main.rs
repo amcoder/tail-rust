@@ -1,5 +1,7 @@
 #![feature(if_let)]
 
+extern crate getopts;
+
 use std::os::{ args };
 use std::io::{
     File, IoResult, EndOfFile,
@@ -7,26 +9,46 @@ use std::io::{
     SeekSet, SeekCur, SeekEnd,
 };
 use std::cmp::{ min };
+use getopts::{ optflag, getopts, usage };
 
 static BUFFER_SIZE: uint = 1024;
 static DEFAULT_LINES: uint = 10;
 
 fn main() {
     let args = args();
-    let multiple_files = args.len() > 2;
+    let program = args[0].clone();
 
-    for arg in args[1..].iter() {
+    let opts = [
+        optflag("h", "help", "display this help and exit"),
+    ];
+
+    let matches = match getopts(args.tail(), opts) {
+        Ok(m) => m,
+        Err(error) => {
+            (writeln!(stderr(), "{}: {}", program, error.to_string())).unwrap();
+            return;
+        },
+    };
+
+    if matches.opt_present("h") {
+        let brief = format!("Usage: {} [OPTION]... [FILE]...", program);
+        println!("{}", usage(brief.as_slice(), opts));
+        return;
+    }
+
+    let files = matches.free;
+    for file_name in files.iter() {
 
         // Output the header, but only if we are tailing more than one file
-        if multiple_files {
-            println!("==> {} <==", arg);
+        if files.len() > 1 {
+            println!("==> {} <==", file_name);
         }
 
         // Open the file and tail it
-        match File::open(&Path::new(arg.as_slice()))
+        match File::open(&Path::new(file_name.as_slice()))
                     .and_then(|f| { tail_file(f, DEFAULT_LINES) }) {
             Err(error) => {
-                (writeln!(stderr(), "tail: {}: {}", arg, error.desc)).unwrap();
+                (writeln!(stderr(), "{}: {}: {}", program, file_name, error.desc)).unwrap();
             },
             _ => continue,
         }
