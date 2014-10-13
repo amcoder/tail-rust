@@ -19,6 +19,7 @@ fn main() {
     let program = args[0].clone();
 
     let opts = [
+        optflag("v", "verbose", "always output file name headers"),
         optflag("h", "help", "display this help and exit"),
     ];
 
@@ -36,11 +37,13 @@ fn main() {
         return;
     }
 
-    let files = matches.free;
+    let files = &matches.free;
+    let output_headers = matches.opt_present("verbose") || files.len() > 1;
+
     for file_name in files.iter() {
 
         // Output the header, but only if we are tailing more than one file
-        if files.len() > 1 {
+        if output_headers {
             println!("==> {} <==", file_name);
         }
 
