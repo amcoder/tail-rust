@@ -41,6 +41,7 @@ fn main() {
         optflag("V", "version", "display version information and exit"),
     ];
 
+    // Parse the provided options
     let options = match parse_options(args.tail(), possible_options) {
         Ok(o) => o,
         Err(error) => {
@@ -49,12 +50,14 @@ fn main() {
         },
     };
 
+    // Show help
     if options.show_help {
         let brief = format!("Usage: {} [OPTION]... [FILE]...", program);
         println!("{}", usage(brief.as_slice(), possible_options));
         return;
     }
 
+    // Show version
     if options.show_version {
         println!("tail-rust v{}", VERSION);
         return;
@@ -114,17 +117,17 @@ fn parse_options(args: &[String],
                             (option_matches.opt_present("verbose") ||
                              option_matches.free.len() > 1),
         item_count: match option_matches.opt_str("lines") {
-            Some(nstr) => {
-                match from_str(nstr.as_slice()) {
-                    Some(n) => n,
-                    None => {
-                        return Err(format!("{}: invalid number of lines",
-                                           nstr));
+                        Some(nstr) => {
+                            match from_str(nstr.as_slice()) {
+                                Some(n) => n,
+                                None => {
+                                    return Err(format!("{}: invalid number of lines",
+                                                       nstr));
+                                },
+                            }
+                        },
+                        None => DEFAULT_LINES,
                     },
-                }
-            },
-            None => DEFAULT_LINES,
-        },
         files: option_matches.free,
     };
 
