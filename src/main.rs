@@ -5,11 +5,14 @@ extern crate getopts;
 use std::os::{ args };
 use std::io::{
     File, IoResult, EndOfFile,
-    stderr, stdout,
+    stderr, stdout, stdin,
     SeekSet, SeekCur, SeekEnd,
+    BufferedReader,
 };
 use std::cmp::{ min };
 use getopts::{ optflag, optopt, getopts, usage, OptGroup };
+use std::collections::Deque;
+use std::collections::ringbuf::RingBuf;
 
 static VERSION: &'static str = "0.0.1";
 
@@ -57,16 +60,34 @@ fn main() {
         return;
     }
 
-    for file_name in options.files.iter() {
+    let stdin_name = vec!["-".to_string()];
+    let files = if options.files.len() == 0 {
+        &stdin_name
+    } else {
+        &options.files
+    };
+
+    // Tail each file
+    for file_name in files.iter() {
 
         // Output the header, but only if we are tailing more than one file
         if options.output_headers {
-            println!("==> {} <==", file_name);
+            println!("==> {} <==", match file_name.as_slice() {
+                "-" => "standard input",
+                s => s,
+            });
         }
 
-        // Open the file and tail it
-        match File::open(&Path::new(file_name.as_slice()))
-                    .and_then(|f| { tail_file(f, options.item_count) }) {
+        let result = if file_name == &"-".to_string() {
+            // Tail stdin
+            tail_reader(&mut stdin(), &options)
+        } else {
+            // Open the file and tail it
+            File::open(&Path::new(file_name.as_slice()))
+                    .and_then(|f| { tail_file(f, options.item_count) })
+        };
+
+        match result {
             Err(error) => {
                 (writeln!(stderr(), "{}: {}: {}", program, file_name, error.desc)).unwrap();
             },
@@ -154,6 +175,25 @@ fn tail_file(mut file: File, n: uint) -> IoResult<()> {
     }
 
     return copy_to_end(&mut file, &mut stdout);
+}
+
+fn tail_reader<R: Reader>(reader: &mut BufferedReader<R>, options: &TailOptions) -> IoResult<()> {
+    let mut stdout = stdout();
+    let mut lines: RingBuf<String> = RingBuf::new();
+
+    for line in reader.lines() {
+        let line = try!(line);
+        if lines.len() == options.item_count {
+            lines.pop_front();
+        }
+        lines.push(line);
+    }
+
+    for line in lines.iter() {
+        try!(stdout.write_str(line.as_slice()));
+    }
+
+    return Ok(());
 }
 
 // Read from 'in' and write to 'out'
