@@ -11,6 +11,8 @@ use std::io::{
 use std::cmp::{ min };
 use getopts::{ optflag, getopts, usage };
 
+static VERSION: &'static str = "0.0.1";
+
 static BUFFER_SIZE: uint = 1024;
 static DEFAULT_LINES: uint = 10;
 
@@ -23,6 +25,7 @@ fn main() {
         optflag("", "silent", "same as --quiet"),
         optflag("v", "verbose", "always output file name headers"),
         optflag("h", "help", "display this help and exit"),
+        optflag("V", "version", "display version information and exit"),
     ];
 
     let matches = match getopts(args.tail(), opts) {
@@ -36,6 +39,11 @@ fn main() {
     if matches.opt_present("h") {
         let brief = format!("Usage: {} [OPTION]... [FILE]...", program);
         println!("{}", usage(brief.as_slice(), opts));
+        return;
+    }
+
+    if matches.opt_present("version") {
+        println!("tail-rust v{}", VERSION);
         return;
     }
 
