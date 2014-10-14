@@ -40,8 +40,8 @@ fn main() {
     let program = args[0].clone();
 
     let possible_options = [
-        optopt("n", "lines", "output the last K lines, or use -n +K to output \
-                                lines starting with the Kth", "K"),
+        optopt("n", "lines",
+               "output the last K lines, or use -n +K to output lines starting with the Kth", "K"),
         optflag("q", "quiet", "never output file name headers"),
         optflag("", "silent", "same as --quiet"),
         optflag("v", "verbose", "always output file name headers"),
@@ -71,47 +71,16 @@ fn main() {
         return;
     }
 
+    // If no files are specified, tail stdin
     let stdin_name = vec!["-".to_string()];
-    let files = if options.files.len() == 0 {
-        &stdin_name
-    } else {
-        &options.files
+    let files = match options.files.len() {
+        0 => &stdin_name,
+        _ => &options.files,
     };
 
     // Tail each file
     for file_name in files.iter() {
-
-        // Output the header, but only if we are tailing more than one file
-        if options.output_headers {
-            println!("==> {} <==", match file_name.as_slice() {
-                "-" => "standard input",
-                s => s,
-            });
-        }
-
-        let result = if file_name == &"-".to_string() {
-            // Tail stdin
-            match options.direction {
-                FromBottom => tail_reader(&mut stdin(), &options),
-                FromTop => {
-                    tail_reader_top(&mut stdin(), options.item_count)
-                },
-            }
-        } else {
-            // Open the file and tail it
-            File::open(&Path::new(file_name.as_slice()))
-                    .and_then(|f| {
-                        match options.direction {
-                            FromBottom => tail_file(f, options.item_count),
-                            FromTop => {
-                                tail_reader_top(&mut BufferedReader::new(f),
-                                                options.item_count)
-                            },
-                        }
-                    })
-        };
-
-        match result {
+        match tail(file_name.as_slice(), &options) {
             Err(error) => {
                 (writeln!(stderr(), "{}: {}: {}", program, file_name, error.desc)).unwrap();
             },
@@ -122,10 +91,9 @@ fn main() {
 
 // Given a set of arguments and possible options, parse the arguments and
 // return the selected TailOptions
-fn parse_options(args: &[String],
-                 options: &[OptGroup]) -> Result<TailOptions, String> {
+fn parse_options(args: &[String], options: &[OptGroup]) -> Result<TailOptions, String> {
 
-    let option_matches = match getopts(args, options) {
+    let matches = match getopts(args, options) {
         Ok(o) => o,
         Err(error) => return Err(error.to_string()),
     };
@@ -142,24 +110,49 @@ fn parse_options(args: &[String],
     };
 
     let (item_count, direction) =
-        match option_matches.opt_str("lines") {
+        match matches.opt_str("lines") {
             Some(nstr) => try!(parse_item_count(nstr.as_slice())),
             None => (DEFAULT_LINES, FromBottom),
         };
 
     let options = TailOptions {
-        show_help: option_matches.opt_present("help"),
-        show_version: option_matches.opt_present("version"),
-        output_headers: !option_matches.opt_present("quiet") &&
-                            !option_matches.opt_present("silent") &&
-                            (option_matches.opt_present("verbose") ||
-                             option_matches.free.len() > 1),
+        show_help: matches.opt_present("help"),
+        show_version: matches.opt_present("version"),
+        output_headers: !matches.opt_present("quiet") && !matches.opt_present("silent")
+                            && (matches.opt_present("verbose") || matches.free.len() > 1),
         item_count: item_count,
         direction: direction,
-        files: option_matches.free,
+        files: matches.free,
     };
 
     return Ok(options);
+}
+
+// Tail the given filename
+fn tail(file_name: &str, options: &TailOptions) -> IoResult<()> {
+
+    // Output the header, but only if we are tailing more than one file
+    if options.output_headers {
+        println!("==> {} <==", match file_name {
+            "-" => "standard input",
+            s => s,
+        });
+    }
+
+    match file_name {
+        // Tail stdin
+        "-" => match options.direction {
+            FromBottom => tail_reader(&mut stdin(), options),
+            FromTop => tail_reader_top(&mut stdin(), options.item_count),
+        },
+        // Open the file and tail it
+        file_name => File::open(&Path::new(file_name)).and_then(|file| {
+            match options.direction {
+                FromBottom => tail_file(file, options.item_count),
+                FromTop => tail_reader_top(&mut BufferedReader::new(file), options.item_count),
+            }
+        }),
+    }
 }
 
 // Output the last 'n' lines from 'file'
@@ -208,6 +201,7 @@ fn tail_file(mut file: File, n: uint) -> IoResult<()> {
     return copy_to_end(&mut file, &mut stdout);
 }
 
+// Output the last 'n' lines from 'reader'
 fn tail_reader<R: Reader>(reader: &mut BufferedReader<R>, options: &TailOptions) -> IoResult<()> {
     let mut stdout = stdout();
     let mut lines: RingBuf<String> = RingBuf::new();
