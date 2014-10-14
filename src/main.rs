@@ -19,12 +19,19 @@ static VERSION: &'static str = "0.0.1";
 static BUFFER_SIZE: uint = 1024;
 static DEFAULT_LINES: uint = 10;
 
+// Represents the direction to start counting items
+enum Direction {
+    FromTop,
+    FromBottom,
+}
+
 // Represents the set of options
 struct TailOptions {
     show_help: bool,
     show_version: bool,
     output_headers: bool,
     item_count: uint,
+    direction: Direction,
     files: Vec<String>,
 }
 
@@ -33,7 +40,8 @@ fn main() {
     let program = args[0].clone();
 
     let possible_options = [
-        optopt("n", "lines", "output the last K lines", "K"),
+        optopt("n", "lines", "output the last K lines, or use -n +K to output \
+                                lines starting with the Kth", "K"),
         optflag("q", "quiet", "never output file name headers"),
         optflag("", "silent", "same as --quiet"),
         optflag("v", "verbose", "always output file name headers"),
@@ -83,11 +91,24 @@ fn main() {
 
         let result = if file_name == &"-".to_string() {
             // Tail stdin
-            tail_reader(&mut stdin(), &options)
+            match options.direction {
+                FromBottom => tail_reader(&mut stdin(), &options),
+                FromTop => {
+                    tail_reader_top(&mut stdin(), options.item_count)
+                },
+            }
         } else {
             // Open the file and tail it
             File::open(&Path::new(file_name.as_slice()))
-                    .and_then(|f| { tail_file(f, options.item_count) })
+                    .and_then(|f| {
+                        match options.direction {
+                            FromBottom => tail_file(f, options.item_count),
+                            FromTop => {
+                                tail_reader_top(&mut BufferedReader::new(f),
+                                                options.item_count)
+                            },
+                        }
+                    })
         };
 
         match result {
@@ -109,6 +130,23 @@ fn parse_options(args: &[String],
         Err(error) => return Err(error.to_string()),
     };
 
+    let parse_item_count = |nstr: &str| {
+        let (nstr, direction) = match nstr.char_at(0) {
+                                    '+' => (nstr[1..], FromTop),
+                                    _ => (nstr, FromBottom),
+                                };
+        match from_str(nstr.as_slice()) {
+            Some(n) => Ok((n, direction)),
+            None => Err(format!("{}: invalid number of lines", nstr)),
+        }
+    };
+
+    let (item_count, direction) =
+        match option_matches.opt_str("lines") {
+            Some(nstr) => try!(parse_item_count(nstr.as_slice())),
+            None => (DEFAULT_LINES, FromBottom),
+        };
+
     let options = TailOptions {
         show_help: option_matches.opt_present("help"),
         show_version: option_matches.opt_present("version"),
@@ -116,18 +154,8 @@ fn parse_options(args: &[String],
                             !option_matches.opt_present("silent") &&
                             (option_matches.opt_present("verbose") ||
                              option_matches.free.len() > 1),
-        item_count: match option_matches.opt_str("lines") {
-                        Some(nstr) => {
-                            match from_str(nstr.as_slice()) {
-                                Some(n) => n,
-                                None => {
-                                    return Err(format!("{}: invalid number of lines",
-                                                       nstr));
-                                },
-                            }
-                        },
-                        None => DEFAULT_LINES,
-                    },
+        item_count: item_count,
+        direction: direction,
         files: option_matches.free,
     };
 
@@ -193,6 +221,18 @@ fn tail_reader<R: Reader>(reader: &mut BufferedReader<R>, options: &TailOptions)
     }
 
     for line in lines.iter() {
+        try!(stdout.write_str(line.as_slice()));
+    }
+
+    return Ok(());
+}
+
+// Tail a reader by skipping 'n' lines from the top and outputting the rest
+fn tail_reader_top<R: Reader>(reader: &mut BufferedReader<R>, n: uint) -> IoResult<()> {
+    let mut stdout = stdout();
+
+    for line in reader.lines().skip(n) {
+        let line = try!(line);
         try!(stdout.write_str(line.as_slice()));
     }
 
