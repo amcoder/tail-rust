@@ -4,7 +4,7 @@ extern crate getopts;
 
 use std::os::{ args };
 use std::io::{
-    File, IoResult, EndOfFile,
+    File, IoResult, IoError, EndOfFile,
     stderr, stdout, stdin,
     SeekSet, SeekCur, SeekEnd,
     BufferedReader,
@@ -240,12 +240,8 @@ fn copy_to_end<T: Reader, U: Writer>(reader: &mut T, writer: &mut U) -> IoResult
     loop {
         let bytes_read = match reader.read(buffer) {
             Ok(n) => n,
-            Err(why) => {
-                if why.kind == EndOfFile {
-                    break;
-                }
-                return Err(why)
-            },
+            Err(IoError { kind: EndOfFile, .. }) => break,
+            Err(why) => return Err(why),
         };
 
         try!(writer.write(buffer[0..bytes_read]));
