@@ -146,9 +146,9 @@ fn tail(file_name: &str, options: &TailOptions) -> IoResult<()> {
             FromTop => tail_reader_top(&mut stdin(), options.item_count),
         },
         // Open the file and tail it
-        file_name => File::open(&Path::new(file_name)).and_then(|file| {
+        file_name => File::open(&Path::new(file_name)).and_then(|mut file| {
             match options.direction {
-                FromBottom => tail_file(file, options.item_count),
+                FromBottom => tail_file(&mut file, options.item_count),
                 FromTop => tail_reader_top(&mut BufferedReader::new(file), options.item_count),
             }
         }),
@@ -156,7 +156,7 @@ fn tail(file_name: &str, options: &TailOptions) -> IoResult<()> {
 }
 
 // Output the last 'n' lines from 'file'
-fn tail_file(mut file: File, n: uint) -> IoResult<()> {
+fn tail_file(file: &mut File, n: uint) -> IoResult<()> {
 
     let mut stdout = stdout();
 
@@ -198,7 +198,7 @@ fn tail_file(mut file: File, n: uint) -> IoResult<()> {
         try!(file.seek(0, SeekSet));
     }
 
-    return copy_to_end(&mut file, &mut stdout);
+    return copy_to_end(file, &mut stdout);
 }
 
 // Output the last 'n' lines from 'reader'
